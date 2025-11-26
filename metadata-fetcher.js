@@ -1,5 +1,5 @@
 const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; MetadataFetcher/1.0; +https://example.com)';
-const MAX_RESPONSE_SIZE = 2 * 1024 * 1024; // 2MB
+const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
 const TIMEOUT_MS = 5000; // 5 seconds
 
 const LANDING_PAGE_HTML = `
@@ -533,6 +533,9 @@ export default {
       return jsonResponse(metadata);
 
     } catch (error) {
+      if (error.message === 'Response size exceeds maximum allowed') {
+        return jsonResponse({ error: 'Response too large' }, 413);
+      }
       return jsonResponse({ 
         error: 'Internal server error', 
         details: error.message 
@@ -573,6 +576,32 @@ async function extractMetadata(response, parsedUrl) {
     
     jsonLd: [],
   };
+
+  let totalBytes = 0;
+  const reader = response.body.getReader();
+  const chunks = [];
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_RESPONSE_SIZE) {
+        throw new Error('Response size exceeds maximum allowed');
+      }
+      
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const blob = new Blob(chunks);
+  const text = await blob.text();
+  const reconstructedResponse = new Response(text, {
+    headers: response.headers
+  });
 
   const rewriter = new HTMLRewriter()
     .on('title', {
@@ -665,7 +694,7 @@ async function extractMetadata(response, parsedUrl) {
       }
     });
   
-  await rewriter.transform(response).text();
+  await rewriter.transform(reconstructedResponse).text();
 
   if (!metadata.favicon) {
     metadata.favicon = `${parsedUrl.protocol}//${parsedUrl.hostname}/favicon.ico`;
