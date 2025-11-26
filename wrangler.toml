@@ -1,0 +1,12 @@
+name = "unfurl"
+main = "metadata-fetcher.js"
+compatibility_date = "2025-11-26"
+
+# Workers Routes (optional - for custom domain)
+# routes = [
+#   { pattern = "metadata.yourdomain.com/*", zone_name = "yourdomain.com" }
+# ]
+
+# Environment variables (if needed)
+# [vars]
+# ENVIRONMENT = "production"
